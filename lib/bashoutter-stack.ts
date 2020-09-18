@@ -26,7 +26,7 @@ export class BashoutterStack extends cdk.Stack {
     })
     new s3_deploy.BucketDeployment(this, "BucketDeployment", {
       destinationBucket: bucket,
-      sources: [s3_deploy.Source.asset("../gui/dist")],
+      sources: [s3_deploy.Source.asset("gui/dist")],
       retainOnDelete: false
     })
 
