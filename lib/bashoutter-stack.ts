@@ -5,6 +5,8 @@ import * as s3_deploy from '@aws-cdk/aws-s3-deployment';
 import * as _lambda from '@aws-cdk/aws-lambda';
 import * as ssm from '@aws-cdk/aws-ssm';
 import * as apigw from '@aws-cdk/aws-apigateway';
+import * as iam from '@aws-cdk/aws-iam';
+import * as cloudfront from '@aws-cdk/aws-cloudfront';
 
 export class BashoutterStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -24,12 +26,31 @@ export class BashoutterStack extends cdk.Stack {
       publicReadAccess: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY
     })
+
     new s3_deploy.BucketDeployment(this, "BucketDeployment", {
       destinationBucket: bucket,
       sources: [s3_deploy.Source.asset("gui/dist")],
       retainOnDelete: false
     })
 
+    const oai = new cloudfront.CfnCloudFrontOriginAccessIdentity(this, "Bashoutter-OAI", {
+      cloudFrontOriginAccessIdentityConfig: {
+        comment: 's3 access'
+      }
+    })
+
+    const policy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['s3:GetObject'],
+      principals: [new iam.CanonicalUserPrincipal(oai.attrS3CanonicalUserId)],
+      resources: [
+        bucket.bucketArn + '/*'
+      ]
+    });
+    bucket.addToResourcePolicy(policy);
+
+    const cloudFront: cloudfront.CloudFrontWebDistribution = createCloudFront(this);
+ 
     const common_params = {
       "runtime": _lambda.Runtime.PYTHON_3_7,
       "environment": {
@@ -109,4 +130,19 @@ export class BashoutterStack extends cdk.Stack {
       value: bucket.bucketWebsiteDomainName
     })
   }
-}
+};
+
+const createCloudFront = (stack: cdk.Stack): cloudfront.CloudFrontWebDistribution => {
+    const distribution = new cloudfront.CloudFrontWebDistribution(stack, "Bashoutter-cloudfront", {
+      defaultRootObject: '/index.html',
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      httpVersion: cloudfront.HttpVersion.HTTP2,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
+      originConfigs: [
+        // TODO: originBucketとapigwのconfigを追加する
+        
+      ]
+    })
+
+    return distribution
+};
