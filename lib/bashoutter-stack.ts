@@ -142,7 +142,7 @@ export class BashoutterStack extends cdk.Stack {
 
 const createCloudFront = (stack: cdk.Stack, bucket: s3.Bucket, oai: cloudfront.OriginAccessIdentity, apigw: apigw.RestApi): cloudfront.CloudFrontWebDistribution => {
     const distribution = new cloudfront.CloudFrontWebDistribution(stack, "Bashoutter-cloudfront", {
-      defaultRootObject: '/index.html',
+      defaultRootObject: 'index.html',
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       httpVersion: cloudfront.HttpVersion.HTTP2,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
@@ -170,7 +170,8 @@ const createCloudFront = (stack: cdk.Stack, bucket: s3.Bucket, oai: cloudfront.O
           originPath: "/stage1",
           behaviors: [
            {
-             isDefaultBehavior: true,
+             pathPattern: 'haiku/*',
+             isDefaultBehavior: false,
              compress: true,
              minTtl: cdk.Duration.seconds(0),
              maxTtl: cdk.Duration.days(0),
