@@ -51,7 +51,7 @@
               <v-col cols="7" class="text-right">
                 <v-btn
                   class="accent"
-                  @click="delete_haiku(haiku.item_id)">
+                  @click="deleteHaiku(haiku.item_id)">
                   Delete
                 </v-btn>
               </v-col>
