@@ -47,6 +47,15 @@
                 <span class="title">{{haiku.username}}</span>
               </v-col>
             </v-row>
+            <v-row justify="space-between" align="center">
+              <v-col cols="7" class="text-right">
+                <v-btn
+                  class="accent"
+                  @click="delete_haiku(haiku.item_id)">
+                  Delete
+                </v-btn>
+              </v-col>
+            </v-row>
           </v-card-text>
         </v-card>
       </v-col>
@@ -95,6 +104,17 @@ export default {
               this.haikus = res.data;
             });
         });
+    },
+    deleteHaiku(item_id) {
+      axios
+        .delete(this.$store.state.url + "/haiku/" + item_id)
+        .then(() => {
+          axios
+            .get(this.$store.state.url + "/haiku")
+            .then(res => {
+              this.haikus = res.data;
+          });
+        }); 
     }
   }
 }
