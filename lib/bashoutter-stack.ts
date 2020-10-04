@@ -5,6 +5,8 @@ import * as s3_deploy from '@aws-cdk/aws-s3-deployment';
 import * as _lambda from '@aws-cdk/aws-lambda';
 import * as ssm from '@aws-cdk/aws-ssm';
 import * as apigw from '@aws-cdk/aws-apigateway';
+import * as iam from '@aws-cdk/aws-iam';
+import * as cloudfront from '@aws-cdk/aws-cloudfront';
 
 export class BashoutterStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -24,12 +26,27 @@ export class BashoutterStack extends cdk.Stack {
       publicReadAccess: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY
     })
+
     new s3_deploy.BucketDeployment(this, "BucketDeployment", {
       destinationBucket: bucket,
       sources: [s3_deploy.Source.asset("gui/dist")],
       retainOnDelete: false
     })
 
+    const oai = new cloudfront.OriginAccessIdentity(this, "Bashoutter-OAI", {
+      comment: "s3 access"
+    })
+
+    const policy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['s3:GetObject'],
+      principals: [new iam.CanonicalUserPrincipal(oai.cloudFrontOriginAccessIdentityS3CanonicalUserId)],
+      resources: [
+        bucket.bucketArn + '/*'
+      ]
+    });
+    bucket.addToResourcePolicy(policy);
+ 
     const common_params = {
       "runtime": _lambda.Runtime.PYTHON_3_7,
       "environment": {
@@ -73,6 +90,10 @@ export class BashoutterStack extends cdk.Stack {
       defaultCorsPreflightOptions:  {
         allowOrigins: apigw.Cors.ALL_ORIGINS,
         allowMethods: apigw.Cors.ALL_METHODS
+      },
+      deployOptions: {
+        stageName: 'stage1',
+        variables: {foo: 'bar'}
       }
     })
 
@@ -105,8 +126,71 @@ export class BashoutterStack extends cdk.Stack {
       stringValue: api.url
     })
 
+    const cloudFront: cloudfront.CloudFrontWebDistribution = createCloudFront(this, bucket, oai, api);
+
     new cdk.CfnOutput(this, "BucketUrl", {
       value: bucket.bucketWebsiteDomainName
     })
+    new cdk.CfnOutput(this, "CloudFrontDistDomainName", {
+      value: cloudFront.distributionDomainName
+    })
+    new cdk.CfnOutput(this, "CloudFrontDomainName", {
+      value: cloudFront.domainName
+    })
   }
-}
+};
+
+const createCloudFront = (stack: cdk.Stack, bucket: s3.Bucket, oai: cloudfront.OriginAccessIdentity, apigw: apigw.RestApi): cloudfront.CloudFrontWebDistribution => {
+    const distribution = new cloudfront.CloudFrontWebDistribution(stack, "Bashoutter-cloudfront", {
+      defaultRootObject: 'index.html',
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      httpVersion: cloudfront.HttpVersion.HTTP2,
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
+      originConfigs: [
+        {
+          s3OriginSource: {
+            s3BucketSource: bucket,
+            originAccessIdentity: oai
+          },
+          behaviors: [
+            {
+              isDefaultBehavior: true,
+              compress: true,
+              minTtl: cdk.Duration.seconds(0),
+              maxTtl: cdk.Duration.days(365),
+              defaultTtl: cdk.Duration.days(1)
+            }
+          ]
+        },
+        {
+          customOriginSource: {
+            domainName: `${apigw.restApiId}.execute-api.ap-northeast-1.amazonaws.com`,
+            originProtocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY
+          },
+          originPath: "/stage1",
+          behaviors: [
+           {
+             pathPattern: 'haiku/*',
+             isDefaultBehavior: false,
+             compress: true,
+             minTtl: cdk.Duration.seconds(0),
+             maxTtl: cdk.Duration.days(0),
+             defaultTtl: cdk.Duration.days(0)
+           }
+          ]
+        }
+      ],
+      errorConfigurations: [
+        {
+          errorCode: 403,
+          errorCachingMinTtl: 300,
+          responseCode: 200,
+          responsePagePath: '/index.html'
+        }
+      ]
+    })
+
+    distribution.node.addDependency(apigw)
+
+    return distribution
+};
