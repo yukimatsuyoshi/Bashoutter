@@ -157,8 +157,8 @@ const createCloudFront = (stack: cdk.Stack, bucket: s3.Bucket, oai: cloudfront.O
               isDefaultBehavior: true,
               compress: true,
               minTtl: cdk.Duration.seconds(0),
-              maxTtl: cdk.Duration.days(365),
-              defaultTtl: cdk.Duration.days(1)
+              maxTtl: cdk.Duration.days(0),
+              defaultTtl: cdk.Duration.days(0)
             }
           ]
         },
